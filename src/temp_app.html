@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>ELF</title>
+		<style>
+			body {
+				background-color: #222;
+				color: #ccc;
+				font-family: monospace;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="input-container">
+			<input type="file" id="file-input" />
+			<button id="parse">Parse</button>
+			<button id="exec">Execute</button>
+		</div>
+		<div id=header-container>
+			<h3><pre>header:</pre></h3>
+			<pre id=header></pre>
+		</div>
+		<div id=stdout-container>
+			<h3><pre>stdout:</pre></h3>
+			<pre id=stdout></pre>
+		</div>
+		<div id=stderr-container>
+			<h3><pre>stderr:</pre></h3>
+			<pre id=stderr></pre>
+		</div>
+		<script type="module">
+			import * as constants from './constants.js';
+			import * as parser from './parser.js';
+
+			const std = {
+	get out() {
+		return document.querySelector('#stdout').innerText;
+	},
+	set out(val) {
+		document.querySelector('#stdout').innerText = val;
+	},
+	get err() {
+		return document.querySelector('#stderr').innerText;
+	},
+	set err(val) {
+		document.querySelector('#stderr').innerText = val;
+	},
+};
+
+			let files = [];
+			document.querySelector('#file-input').onchange = evt => {
+				files = event.target.files;
+			};
+
+			document.querySelector('#parse').onclick = async () => {
+				if (!files.length) {
+					std.err = 'No file[s] selected';
+					return;
+				}
+
+				try {
+					const raw = await files[0].arrayBuffer();
+					header = parser.parseELFHeader(raw);
+
+					const section_headers_raw = raw.slice(Number(header.e_shoff), Number(header.e_shoff) + header.e_shentsize * header.e_shnum);
+					const section_headers = parser.parseSectionHeader(section_headers_raw, header.e_shentsize, header.EI_DATA == 1, header.EI_CLASS == 1);
+
+					const program_headers_raw = raw.slice(Number(header.e_phoff), Number(header.e_phoff) + header.e_phentsize * header.e_phnum);
+					const program_headers = parser.parseProgramHeader(program_headers_raw, header.e_phentsize, header.EI_DATA == 1, header.EI_CLASS == 1);
+
+					document.querySelector('#header').innerHTML = `\
+					Magic: 0x${header.EI_MAG0.toString(16)} \
+					${String.fromCharCode(header.EI_MAG1)} \
+					${String.fromCharCode(header.EI_MAG2)} \
+					${String.fromCharCode(header.EI_MAG3)}
+					Class: ${header.EI_CLASS == 1 ? 'ELF32' : 'ELF64'}
+					Endianness: ${header.EI_DATA == 1 ? 'Little Endian' : 'Big Endian'}
+					Version: ${header.EI_VERSION}
+					OS ABI: ${constants.EI_OSABI[header.EI_OSABI]}
+					ABI version: ${header.EI_ABIVERSION}
+					Type: ${constants.e_type[header.e_type]}
+					Machine: ${constants.e_machine[header.e_machine]}
+					Version: 0x${header.e_version.toString(16)}
+					Entry point: 0x${header.e_entry.toString(16)}
+					Start of program headers: ${header.e_phoff} (bytes into file)
+					Start of section headers: ${header.e_shoff} (bytes into file)
+					Flags: 0x${header.e_flags.toString(16)}
+					Header size: ${header.e_ehsize} (bytes)
+					Program header entry size: ${header.e_phentsize} (bytes)
+					Program header entries: ${header.e_phnum}
+					Section header table entry size: ${header.e_shentsize} (bytes)
+					Section header table entries: ${header.e_shnum}
+					Section header table names index: ${header.e_shstrndx}
+
+					Sections:
+					${section_headers
+						.map(sh => {
+							return `\
+							Type: ${constants.sh_type[sh.type] || '0x' + sh.type.toString(16)}
+							Address: 0x${sh.addr.toString(16)}
+							Flags: ${Object.entries(constants.sh_flags)
+								.map(([num, text]) => ((Number(sh.flags) & num) == num ? text : ''))
+								.filter(flag => flag)
+								.join(', ')}
+							Offset: ${sh.offset} (bytes)
+							Size: ${sh.size} (bytes)
+							Link: ${sh.link}
+							Info: ${sh.info}
+							Address alignment: ${sh.addralign}
+							Entry size: ${sh.entsize}
+						`;
+						})
+						.join('<br>')}
+					
+					Program:
+					${program_headers
+						.map(ph => {
+							return `\
+							Type: ${constants.p_type[ph.type] || '0x' + ph.type.toString(16)}
+							Offset: ${ph.offset} (bytes)
+							Virtual address: 0x${ph.vaddr.toString(16)}
+							Physical address: 0x${ph.paddr.toString(16)}
+							File segment size: 0x${ph.filesz.toString(16)}
+							Memory segment size: 0x${ph.memsz.toString(16)}
+							Flags: 0x${ph.flags.toString(16)}
+							Alignment: ${ph.align}
+						`;
+			})
+			.join('<br>')}`
+						.replaceAll('\n', '<br>')
+						.replaceAll('\t', '');
+				} catch (err) {
+					std.err = 'Failed to parse: ' + err.stack;
+				}
+			};
+		</script>
+	</body>
+</html>

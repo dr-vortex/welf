@@ -1,0 +1,30 @@
+{
+	"name": "welf",
+	"version": "0.0.1",
+	"description": "An ELF reader for JS",
+	"main": "src/index.js",
+	"scripts": {
+		"format:check": "npx prettier --check src/**/*.{html,js}",
+		"format:fix": "npx prettier --write src/**/*.{html,js}",
+		"format": "npm run format:check && npm run format:fix",
+		"lint": "npx eslint src/**/*.js",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dr-vortex/welf.git"
+	},
+	"keywords": [
+		"ELF"
+	],
+	"author": "Dr. Vortex",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/dr-vortex/welf/issues"
+	},
+	"homepage": "https://github.com/dr-vortex/welf#readme",
+	"devDependencies": {
+		"eslint": "^8.34.0",
+		"prettier": "^2.8.4"
+	}
+}
